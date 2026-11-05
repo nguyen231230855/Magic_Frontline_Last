@@ -16,6 +16,7 @@ public class MenuManager : MonoBehaviour
     [SerializeField] AudioClip clickSfx;
     public static AudioClip ClickSfx;
     bool closingPlay;
+    int restoreFullscreenAfterFrame;
 
     static bool revealed;
     public static bool opened;
@@ -143,6 +144,19 @@ public class MenuManager : MonoBehaviour
         soundSlider.onValueChanged.AddListener(AudioManager.Instance.SetSfxVolume);
     }
 
+    void Update()
+    {
+        if (Application.platform != RuntimePlatform.WebGLPlayer
+            || Time.frameCount <= restoreFullscreenAfterFrame)
+            return;
+
+        bool pressed = Input.GetMouseButtonDown(0);
+        for (int i = 0; i < Input.touchCount && !pressed; i++)
+            pressed = Input.GetTouch(i).phase == TouchPhase.Began;
+        if (!Screen.fullScreen && pressed)
+            Screen.fullScreen = true;
+    }
+
     void PlayClick()
     {
         AudioManager.Instance.PlaySFX(clickSfx);
@@ -150,6 +164,7 @@ public class MenuManager : MonoBehaviour
 
     public void OnCapClicked()
     {
+        Screen.fullScreen = true;
         if (capButton != null)
             capButton.interactable = false;
         StartCoroutine(PlayTitleThenOpenMenu());
@@ -267,9 +282,12 @@ public class MenuManager : MonoBehaviour
 
     public void Quit()
     {
+        if (Application.platform == RuntimePlatform.WebGLPlayer)
+            restoreFullscreenAfterFrame = Time.frameCount + 1;
+        Screen.fullScreen = false;
 #if UNITY_EDITOR
         UnityEditor.EditorApplication.isPlaying = false;
-#else
+#elif !UNITY_WEBGL
         Application.Quit();
 #endif
     }

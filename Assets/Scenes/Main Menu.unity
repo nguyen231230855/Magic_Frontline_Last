@@ -3559,7 +3559,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Tower Defence
+  m_text: Magic Frontline
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: f6a441fb7672bd14d8809f427e99b4f3, type: 2}
   m_sharedMaterial: {fileID: 6514963192516361693, guid: f6a441fb7672bd14d8809f427e99b4f3, type: 2}
