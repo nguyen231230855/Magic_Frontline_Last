@@ -16,6 +16,7 @@ public class Enemy : MonoBehaviour
     float burnLeft;
     float burnTick;
     float baseSpeed;
+    int baseHealth;
     float slowLeft;
     float slowScale = 1f;
     TextMeshPro status;
@@ -43,7 +44,7 @@ public class Enemy : MonoBehaviour
         }
         if (health > 0) return;
         CoinManager.instance.UpdateCoins(reward);
-        Destroy(gameObject);
+        ObjectPool.Release(gameObject);
     }
 
     void ShowDamage(float amount)
@@ -103,6 +104,7 @@ public class Enemy : MonoBehaviour
     {
         Debug.Assert(damageTaken > 0f, "damageTaken must be above 0");
         baseSpeed = speed;
+        baseHealth = health;
         var go = new GameObject("Status");
         go.transform.SetParent(transform, false);
         go.transform.position = transform.position + Vector3.up * 0.95f;
@@ -119,6 +121,20 @@ public class Enemy : MonoBehaviour
         status.sortingOrder = 20;
         status.rectTransform.sizeDelta = new Vector2(2f, 1f);
         status.text = "";
+    }
+
+    void OnEnable()
+    {
+        damageLeft = 0f;
+        health = baseHealth;
+        burnPerTick = 0;
+        burnLeft = 0f;
+        burnTick = 0f;
+        slowLeft = 0f;
+        slowScale = 1f;
+        speed = baseSpeed > 0f ? baseSpeed : speed;
+        currentWayPoint = 0;
+        if (status != null) status.text = "";
     }
 
     void RefreshStatus()
@@ -173,7 +189,7 @@ public class Enemy : MonoBehaviour
             if (currentWayPoint >= waypoints.Length)
             {
                 HealthManager.Instance.UpdateHealth(-reward);
-                Destroy(gameObject);
+                ObjectPool.Release(gameObject);
             }
         }
     }

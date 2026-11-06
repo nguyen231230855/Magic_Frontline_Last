@@ -17,7 +17,7 @@ public class Projectile : MonoBehaviour
     {
         if (target == null)
         {
-            Destroy(gameObject);
+            ObjectPool.Release(gameObject);
             return;
         }
 
@@ -40,7 +40,7 @@ public class Projectile : MonoBehaviour
 
             Instantiate(hitPS, transform.position, Quaternion.identity);
             AudioManager.Instance.PlaySFX(hitSFX);
-            Destroy(gameObject);
+            ObjectPool.Release(gameObject);
         }
     }
 }

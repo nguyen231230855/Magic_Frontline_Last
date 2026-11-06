@@ -36,4 +36,11 @@ public class CoinManager : MonoBehaviour
         coins += changeAmount;
         coinTxt.text = coins.ToString("0.##", CultureInfo.InvariantCulture);
     }
+
+    public bool TrySpend(int amount)
+    {
+        if (amount < 0 || coins < amount) return false;
+        UpdateCoins(-amount);
+        return true;
+    }
 }

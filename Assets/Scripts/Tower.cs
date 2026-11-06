@@ -76,27 +76,30 @@ public class Tower : MonoBehaviour
     {
         bool fire = effectProjectilePrefab != null && upgradeStage >= upgradeStages.Length;
         GameObject prefab = fire ? effectProjectilePrefab : projectilePrefab;
-        GameObject p = Instantiate(prefab, firePoint.position, Quaternion.identity);
+        GameObject p = ObjectPool.Get(prefab, firePoint.position, Quaternion.identity);
         Projectile pr = p.GetComponent<Projectile>();
         pr.target = target.transform;
         if (shootSfx != null)
             AudioManager.Instance.PlaySFX(shootSfx, shootVolume);
     }
 
-    public void Upgrade()
+    public bool TryUpgrade()
     {
+        if (upgradeStage < 0 || upgradeStage >= upgradeStages.Length) return false;
         TowerUpgradeStages currentUpgradeStage = upgradeStages[upgradeStage];
+        if (!CoinManager.instance.TrySpend(currentUpgradeStage.price)) return false;
 
         range = currentUpgradeStage.range;
         fireRate = currentUpgradeStage.fireRate;
         sr.sprite = currentUpgradeStage.sprite;
-        CoinManager.instance.UpdateCoins(-currentUpgradeStage.price);
         upgradeStage++;
         Instantiate(cloudPS, transform.position, Quaternion.identity);
+        return true;
     }
 
     private void OnMouseDown()
     {
+        if (upgradeStage >= upgradeStages.Length) return;
         if(currentUI == null)
         {
             currentUI =Instantiate(towerUpgradeUIPrefab, FindObjectOfType<Canvas>().transform);
@@ -107,10 +110,6 @@ public class Tower : MonoBehaviour
 
         currentUI.transform.position = Input.mousePosition + new Vector3(50, -50);
     
-        if(upgradeStage >= upgradeStages.Length)
-        {
-            return;
-        }
         currentUpgradeUI.priceTxt.text = upgradeStages[upgradeStage].price.ToString();
     }
 }

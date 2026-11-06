@@ -2,8 +2,6 @@ using UnityEngine;
 using UnityEngine.Tilemaps;
 using System.Collections.Generic;
 using UnityEngine.EventSystems;
-using System.IO;
-using System.Net;
 
 public class TowerPlacer : MonoBehaviour
 {
@@ -80,10 +78,11 @@ public class TowerPlacer : MonoBehaviour
 
         if (!placementMap.HasTile(cellPos) || occupiedCells.Contains(cellPos)) return;
 
+        Tower tower = TowerSelectionUI.SelectedTowerPrefab.GetComponent<Tower>();
+        if (!CoinManager.instance.TrySpend(tower.towerPrice)) return;
+
         Instantiate(TowerSelectionUI.SelectedTowerPrefab, ghostInstance.transform.position, Quaternion.identity);
         PlayPlaceSfx();
-
-        CoinManager.instance.UpdateCoins(-TowerSelectionUI.SelectedTowerPrefab.GetComponent<Tower>().towerPrice);
 
         TowerSelectionUI.SelectedTowerPrefab = null;
         occupiedCells.Add(cellPos);

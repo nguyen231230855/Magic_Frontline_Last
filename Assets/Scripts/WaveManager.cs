@@ -175,7 +175,7 @@ public class WaveManager : MonoBehaviour
             pathSnapped = true;
         }
 
-        GameObject e = Instantiate(prefab, wayPoints[0].position, Quaternion.identity);
+        GameObject e = ObjectPool.Get(prefab, wayPoints[0].position, Quaternion.identity);
         Enemy enemy = e.GetComponent<Enemy>();
         enemy.waypoints = wayPoints;
     }

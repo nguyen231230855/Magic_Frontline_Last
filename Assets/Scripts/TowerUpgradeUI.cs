@@ -19,12 +19,7 @@ public class TowerUpgradeUI : MonoBehaviour
     
     private void TryUpgrade()
     {
-        if(CoinManager.instance.coins < tower.upgradeStages[tower.upgradeStage].price)
-        {
-            return;
-        }
-
-        tower.Upgrade();
+        if (tower == null || !tower.TryUpgrade()) return;
         FindFirstObjectByType<TowerPlacer>()?.PlayPlaceSfx();
 
         Destroy(gameObject);
@@ -32,6 +27,14 @@ public class TowerUpgradeUI : MonoBehaviour
 
     void Update()
     {
+        bool canUpgrade = tower != null && tower.upgradeStage >= 0 && tower.upgradeStage < tower.upgradeStages.Length;
+        if (!canUpgrade)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        upgradeButton.interactable = CoinManager.instance.coins >= tower.upgradeStages[tower.upgradeStage].price;
+
         if(justOpened)
         {
             justOpened = false;
@@ -44,10 +47,6 @@ public class TowerUpgradeUI : MonoBehaviour
             {
                 return;
             }
-            Destroy(gameObject);
-        }
-        if(tower.upgradeStage >= tower.upgradeStages.Length)
-        {
             Destroy(gameObject);
         }
     }
