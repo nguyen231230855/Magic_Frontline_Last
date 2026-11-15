@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 8583962072553247970}
   - component: {fileID: 518303851712377431}
   m_Layer: 0
-  m_Name: Easy Enemy
+  m_Name: UFO_level1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
