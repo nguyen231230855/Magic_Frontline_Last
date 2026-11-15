@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -5,12 +6,12 @@ using UnityEngine.UI;
 
 public class LevelCanvasLoader : MonoBehaviour
 {
+    public static Canvas Hud { get; private set; }
     static GameObject spawned;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     static void Boot()
     {
-        PlayerPrefs.DeleteKey("clearedLevel");
         var go = new GameObject(nameof(LevelCanvasLoader));
         DontDestroyOnLoad(go);
         go.AddComponent<LevelCanvasLoader>();
@@ -21,6 +22,7 @@ public class LevelCanvasLoader : MonoBehaviour
     {
         if (scene.name == "Main Menu")
         {
+            Hud = null;
             if (spawned != null)
                 Destroy(spawned);
             return;
@@ -41,6 +43,9 @@ public class LevelCanvasLoader : MonoBehaviour
             DontDestroyOnLoad(spawned);
         }
 
+        Hud = spawned.GetComponent<Canvas>();
+        Debug.Assert(Hud != null, "Level HUD missing");
+
         Button goButton = null;
         TextMeshProUGUI waveTxt = null;
         foreach (var button in spawned.GetComponentsInChildren<Button>(true))
@@ -55,12 +60,6 @@ public class LevelCanvasLoader : MonoBehaviour
         }
         Debug.Assert(goButton != null && waveTxt != null, "Level canvas missing GoBTN or WaveTxt");
 
-        foreach (var wave in FindObjectsByType<WaveManager>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-        {
-            if (wave.gameObject.scene == scene)
-                wave.UseHud(goButton, waveTxt);
-        }
-
         var placer = FindFirstObjectByType<TowerPlacer>();
         var coins = spawned.GetComponentInChildren<CoinManager>(true);
         Debug.Assert(placer != null && coins != null, "Level missing coins");
@@ -68,6 +67,14 @@ public class LevelCanvasLoader : MonoBehaviour
             coins.SetStart(placer.startCoins);
 
         EnsureHome(spawned);
+
+        var lanes = new List<WaveManager>();
+        foreach (var wave in FindObjectsByType<WaveManager>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (wave.gameObject.scene == scene)
+                lanes.Add(wave);
+        }
+        WaveLaneHud.Load(spawned, goButton, waveTxt, lanes);
     }
 
     static void EnsureHome(GameObject canvas)
@@ -87,8 +94,6 @@ public class LevelHome : MonoBehaviour
     Transform winPanel;
     Transform lostPanel;
     bool lost;
-    float previousScale = 1f;
-    bool paused;
 
     void Awake()
     {
@@ -137,9 +142,8 @@ public class LevelHome : MonoBehaviour
     public void ResetLevel()
     {
         lost = false;
-        paused = false;
-        Time.timeScale = 1f;
-        TowerSelectionUI.SelectedTowerPrefab = null;
+        var speed = GetComponentInChildren<SpeedUpManager>(true);
+        TowerSelectionUI.Clear(false);
         if (winPanel != null)
             winPanel.gameObject.SetActive(false);
         if (lostPanel != null)
@@ -154,9 +158,9 @@ public class LevelHome : MonoBehaviour
         var coins = GetComponentInChildren<CoinManager>(true);
         if (coins != null)
             coins.ResetCoins();
-        var speed = GetComponentInChildren<SpeedUpManager>(true);
         if (speed != null)
             speed.ResetSpeed();
+        SpeedUpManager.ClearPause();
         foreach (var label in GetComponentsInChildren<TextMeshProUGUI>(true))
         {
             if (label.name == "WaveTxt")
@@ -170,6 +174,7 @@ public class LevelHome : MonoBehaviour
                 button.interactable = true;
             }
         }
+        SetBattleButtons(true);
         foreach (var upgrade in GetComponentsInChildren<TowerUpgradeUI>(true))
             Destroy(upgrade.gameObject);
     }
@@ -179,16 +184,18 @@ public class LevelHome : MonoBehaviour
         if (lost)
             return;
         lost = true;
-        Time.timeScale = 0f;
+        SpeedUpManager.PushPause();
         Debug.Assert(lostPanel != null, "LostPanel missing");
         if (lostPanel == null)
             return;
         lostPanel.gameObject.SetActive(true);
         lostPanel.SetAsLastSibling();
+        SetBattleButtons(false);
     }
 
     void Back()
     {
+        SpeedUpManager.ClearPause();
         Time.timeScale = 1f;
         MenuManager.opened = true;
         SceneManager.LoadScene("Main Menu");
@@ -202,6 +209,7 @@ public class LevelHome : MonoBehaviour
 
     void Next()
     {
+        SpeedUpManager.ClearPause();
         Time.timeScale = 1f;
         MenuManager.opened = true;
         MenuManager.showPlay = true;
@@ -211,15 +219,38 @@ public class LevelHome : MonoBehaviour
     public void ShowWin(int health)
     {
         Debug.Assert(winPanel != null, "WinPanel missing");
+        SpeedUpManager.PushPause();
         if (winPanel == null)
             return;
         MenuManager.ClearLevel(SceneManager.GetActiveScene().name);
         int max = HealthManager.Instance.MaxHealth;
         int stars = health * 3 > max * 2 ? 3 : health * 3 > max ? 2 : 1;
+        string key = SceneManager.GetActiveScene().name + "Stars";
+        if (stars > PlayerPrefs.GetInt(key, 0))
+        {
+            PlayerPrefs.SetInt(key, stars);
+            PlayerPrefs.Save();
+        }
         winPanel.gameObject.SetActive(true);
         winPanel.SetAsLastSibling();
         for (int i = 1; i <= 3; i++)
             winPanel.Find("Star_" + i).gameObject.SetActive(i <= stars);
+        SetBattleButtons(false);
+    }
+
+    public bool ResultOpen =>
+        winPanel != null && winPanel.gameObject.activeSelf ||
+        lostPanel != null && lostPanel.gameObject.activeSelf;
+
+    void SetBattleButtons(bool on)
+    {
+        if (!on)
+            TowerSelectionUI.Clear(true);
+        foreach (var button in GetComponentsInChildren<Button>(true))
+        {
+            if (button.name == "2XBTN" || button.name.StartsWith("TowerBTN"))
+                button.interactable = on;
+        }
     }
 
     Button FindButton(string name)
@@ -261,12 +292,8 @@ public class LevelHome : MonoBehaviour
 
     void Open()
     {
-        if (!paused)
-        {
-            previousScale = Time.timeScale;
-            Time.timeScale = 0f;
-            paused = true;
-        }
+        if (!panel.activeSelf)
+            SpeedUpManager.PushPause();
         dim.SetActive(true);
         panel.SetActive(true);
         dim.transform.SetAsLastSibling();
@@ -275,20 +302,20 @@ public class LevelHome : MonoBehaviour
 
     public void Hide()
     {
+        bool wasOpen = panel != null && panel.activeSelf;
         if (panel != null)
             panel.SetActive(false);
         if (dim != null)
             dim.SetActive(false);
-        if (!paused)
-            return;
-        Time.timeScale = previousScale;
-        paused = false;
+        if (wasOpen)
+            SpeedUpManager.PopPause();
     }
 
     void Confirm()
     {
+        SpeedUpManager.ClearPause();
         Time.timeScale = 1f;
-        paused = false;
+        MenuManager.opened = true;
         SceneManager.LoadScene("Main Menu");
     }
 }

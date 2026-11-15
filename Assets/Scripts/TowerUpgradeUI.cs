@@ -1,5 +1,6 @@
 using UnityEngine;
 using TMPro;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 public class TowerUpgradeUI : MonoBehaviour
@@ -41,13 +42,14 @@ public class TowerUpgradeUI : MonoBehaviour
             return;
         }
 
-        if(Input.GetMouseButtonDown(0))
-        {
-            if(UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
-            {
-                return;
-            }
+        if (Input.GetMouseButtonDown(0) && CloseOnClick(EventSystem.current))
             Destroy(gameObject);
-        }
+    }
+
+    static bool CloseOnClick(EventSystem events)
+    {
+        if (events == null)
+            return false;
+        return !events.IsPointerOverGameObject();
     }
 }

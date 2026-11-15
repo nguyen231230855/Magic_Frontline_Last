@@ -103,6 +103,10 @@ MonoBehaviour:
   speed: 2
   health: 2
   reward: 1
+  leak: 1
   waypoints: []
   currentWayPoint: 0
-  damageTaken: 1
+  bodyTaken: 1
+  spellTaken: 1
+  attack: 0
+  attackEvery: 1.1

@@ -102,6 +102,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   speed: 6
   damage: 1
+  channel: 0
   burnDamage: 1
   burnDuration: 2
   target: {fileID: 0}

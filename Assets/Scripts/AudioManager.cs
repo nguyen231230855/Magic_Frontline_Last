@@ -1,7 +1,6 @@
 using UnityEngine;
 using UnityEngine.Audio;
 using UnityEngine.SceneManagement;
-using System.Collections;
 using System.Collections.Generic;
 
 public class AudioManager : MonoBehaviour
@@ -9,10 +8,10 @@ public class AudioManager : MonoBehaviour
     public static AudioManager Instance;
     [SerializeField] AudioMixer mixer;
     AudioSource music;
-    AudioMixerGroup sfxGroup;
+    AudioSource sfx;
     float musicLevel = 1f;
     float sfxLevel = 1f;
-    Dictionary<AudioClip, AudioClip> boosted;
+    Dictionary<(AudioClip clip, float gain), AudioClip> boosted;
 
     public float MusicLevel => musicLevel;
     public float SfxLevel => sfxLevel;
@@ -34,7 +33,10 @@ public class AudioManager : MonoBehaviour
         AudioMixerGroup[] sfxGroups = mixer.FindMatchingGroups("SFX");
         Debug.Assert(musicGroups.Length == 1 && sfxGroups.Length == 1, "Music or SFX group missing");
         music.outputAudioMixerGroup = musicGroups[0];
-        sfxGroup = sfxGroups[0];
+        sfx = gameObject.AddComponent<AudioSource>();
+        sfx.outputAudioMixerGroup = sfxGroups[0];
+        sfx.playOnAwake = false;
+        sfx.spatialBlend = 0f;
         music.loop = true;
         music.spatialBlend = 0f;
         SetMusicVolume(musicLevel);
@@ -83,13 +85,14 @@ public class AudioManager : MonoBehaviour
             clip = Boost(clip, volume);
             volume = 1f;
         }
-        StartCoroutine(PlaySFXCoroutine(clip, volume));
+        sfx.PlayOneShot(clip, volume);
     }
 
     AudioClip Boost(AudioClip clip, float gain)
     {
-        boosted ??= new Dictionary<AudioClip, AudioClip>();
-        if (boosted.TryGetValue(clip, out AudioClip cached))
+        boosted ??= new Dictionary<(AudioClip, float), AudioClip>();
+        var key = (clip, gain);
+        if (boosted.TryGetValue(key, out AudioClip cached))
             return cached;
         float[] data = new float[clip.samples * clip.channels];
         bool read = clip.GetData(data, 0);
@@ -100,20 +103,7 @@ public class AudioManager : MonoBehaviour
             data[i] = Mathf.Clamp(data[i] * gain, -1f, 1f);
         AudioClip copy = AudioClip.Create(clip.name, clip.samples, clip.channels, clip.frequency, false);
         copy.SetData(data, 0);
-        boosted[clip] = copy;
+        boosted[key] = copy;
         return copy;
-    }
-
-    IEnumerator PlaySFXCoroutine(AudioClip clip, float volume = 1f)
-    {
-        AudioSource audioSource = gameObject.AddComponent<AudioSource>();
-        audioSource.outputAudioMixerGroup = sfxGroup;
-        audioSource.clip = clip;
-        audioSource.volume = volume;
-        audioSource.Play();
-
-        yield return new WaitForSeconds(clip.length * 2);
-
-        Destroy(audioSource);
     }
 }

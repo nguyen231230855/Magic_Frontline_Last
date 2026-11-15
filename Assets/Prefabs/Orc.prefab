@@ -104,9 +104,13 @@ MonoBehaviour:
   speed: 1.8
   health: 10
   reward: 6
+  leak: 6
   waypoints: []
   currentWayPoint: 0
-  damageTaken: 0.75
+  bodyTaken: 0.75
+  spellTaken: 1
+  attack: 3
+  attackEvery: 1
 --- !u!95 &710020005
 Animator:
   serializedVersion: 7

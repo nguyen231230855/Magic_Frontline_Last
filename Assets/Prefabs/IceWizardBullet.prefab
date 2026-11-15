@@ -102,6 +102,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   speed: 4
   damage: 2
+  channel: 1
   burnDamage: 0
   burnDuration: 0
   slowScale: 0.5

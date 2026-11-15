@@ -1,10 +1,20 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public static class ObjectPool
 {
     static readonly Dictionary<GameObject, Stack<GameObject>> pools = new();
     static readonly Dictionary<GameObject, GameObject> prefabs = new();
+
+    static ObjectPool()
+    {
+        SceneManager.sceneUnloaded += _ =>
+        {
+            pools.Clear();
+            prefabs.Clear();
+        };
+    }
 
     public static GameObject Get(GameObject prefab, Vector3 position, Quaternion rotation)
     {
@@ -20,9 +30,10 @@ public static class ObjectPool
 
     public static void Release(GameObject instance)
     {
-        if (instance == null || !prefabs.TryGetValue(instance, out var prefab))
+        if (instance == null || !instance.activeSelf) return;
+        if (!prefabs.TryGetValue(instance, out var prefab))
         {
-            if (instance != null) Object.Destroy(instance);
+            Object.Destroy(instance);
             return;
         }
 

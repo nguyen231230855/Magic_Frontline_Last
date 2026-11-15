@@ -7,16 +7,28 @@ public class TowerUpgradeStages
     public float fireRate;
     public Sprite sprite;
     public int price;
+    public int damage = 1;
+    public HitChannel channel;
+    public int burnDamage;
+    public float burnDuration;
+    public float slowScale = 1f;
+    public float slowDuration;
 }
 public class Tower : MonoBehaviour
 {
     public float range = 3f;
     public float fireRate = 1f;
     public GameObject projectilePrefab;
-    public GameObject effectProjectilePrefab;
     public Transform firePoint;
     public AudioClip shootSfx;
     public float shootVolume = 1f;
+
+    public int damage = 1;
+    public HitChannel channel;
+    public int burnDamage;
+    public float burnDuration;
+    public float slowScale = 1f;
+    public float slowDuration;
 
     public TowerUpgradeStages[] upgradeStages;
     public int upgradeStage = 0;
@@ -37,6 +49,17 @@ public class Tower : MonoBehaviour
     }
     void Update()
     {
+        if (WaveManager.FrameOwned)
+            return;
+        Tick();
+    }
+
+    public void Tick()
+    {
+        // Barrack has no projectile. Its knights live on Barrack.
+        if (projectilePrefab == null)
+            return;
+
         fireCooldown -= Time.deltaTime;
 
         Enemy target = FindBestTarget();
@@ -50,23 +73,13 @@ public class Tower : MonoBehaviour
 
     Enemy FindBestTarget()
     {
-        Enemy[] enemies = GameObject.FindObjectsOfType<Enemy>();
-
         Enemy best = null;
-        float bestProgress = -1f;
-
-        foreach (Enemy e in enemies)
+        foreach (Enemy e in WaveManager.alive)
         {
-            float dist = Vector2.Distance(transform.position, e.transform.position);
-
-            if (dist <= range)
-            {
-                if (e.currentWayPoint > bestProgress)
-                {
-                    bestProgress = e.currentWayPoint;
-                    best = e;
-                }
-            }
+            if (Vector2.Distance(transform.position, e.transform.position) > range)
+                continue;
+            if (best == null || e.CloserThan(best, transform.position))
+                best = e;
         }
 
         return best;
@@ -74,11 +87,16 @@ public class Tower : MonoBehaviour
 
     void Shoot(Enemy target)
     {
-        bool fire = effectProjectilePrefab != null && upgradeStage >= upgradeStages.Length;
-        GameObject prefab = fire ? effectProjectilePrefab : projectilePrefab;
-        GameObject p = ObjectPool.Get(prefab, firePoint.position, Quaternion.identity);
+        GameObject p = ObjectPool.Get(projectilePrefab, firePoint.position, Quaternion.identity);
         Projectile pr = p.GetComponent<Projectile>();
+        pr.damage = damage;
+        pr.channel = channel;
+        pr.burnDamage = burnDamage;
+        pr.burnDuration = burnDuration;
+        pr.slowScale = slowScale;
+        pr.slowDuration = slowDuration;
         pr.target = target.transform;
+        pr.life = target.life;
         if (shootSfx != null)
             AudioManager.Instance.PlaySFX(shootSfx, shootVolume);
     }
@@ -91,7 +109,14 @@ public class Tower : MonoBehaviour
 
         range = currentUpgradeStage.range;
         fireRate = currentUpgradeStage.fireRate;
-        sr.sprite = currentUpgradeStage.sprite;
+        if (currentUpgradeStage.sprite != null)
+            sr.sprite = currentUpgradeStage.sprite;
+        damage = currentUpgradeStage.damage;
+        channel = currentUpgradeStage.channel;
+        burnDamage = currentUpgradeStage.burnDamage;
+        burnDuration = currentUpgradeStage.burnDuration;
+        slowScale = currentUpgradeStage.slowScale;
+        slowDuration = currentUpgradeStage.slowDuration;
         upgradeStage++;
         Instantiate(cloudPS, transform.position, Quaternion.identity);
         return true;
@@ -100,16 +125,20 @@ public class Tower : MonoBehaviour
     private void OnMouseDown()
     {
         if (upgradeStage >= upgradeStages.Length) return;
-        if(currentUI == null)
-        {
-            currentUI =Instantiate(towerUpgradeUIPrefab, FindObjectOfType<Canvas>().transform);
-        }
+        Canvas hud = LevelCanvasLoader.Hud;
+        Debug.Assert(hud != null, "Level HUD missing");
+        if (hud == null) return;
+        if (currentUI == null)
+            currentUI = Instantiate(towerUpgradeUIPrefab, hud.transform);
 
         TowerUpgradeUI currentUpgradeUI = currentUI.GetComponent<TowerUpgradeUI>();
         currentUpgradeUI.tower = this;
 
-        currentUI.transform.position = Input.mousePosition + new Vector3(50, -50);
-    
+        Camera cam = hud.renderMode == RenderMode.ScreenSpaceOverlay ? null : hud.worldCamera;
+        if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            hud.transform as RectTransform, Input.mousePosition, cam, out Vector2 local))
+            currentUI.transform.localPosition = new Vector3(local.x + 50f, local.y - 50f, 0f);
+
         currentUpgradeUI.priceTxt.text = upgradeStages[upgradeStage].price.ToString();
     }
 }

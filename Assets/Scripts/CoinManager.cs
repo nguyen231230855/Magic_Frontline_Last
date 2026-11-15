@@ -19,6 +19,7 @@ public class CoinManager : MonoBehaviour
 
     public void SetStart(int amount)
     {
+        TowerSelectionUI.Clear(false);
         startCoins = amount;
         coins = 0;
         UpdateCoins(amount);
@@ -26,6 +27,7 @@ public class CoinManager : MonoBehaviour
 
     public void ResetCoins()
     {
+        TowerSelectionUI.Clear(false);
         coins = startCoins;
         instance = this;
         UpdateCoins(0);

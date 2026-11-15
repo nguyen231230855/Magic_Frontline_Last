@@ -29,6 +29,9 @@ public class TowerPlacer : MonoBehaviour
 
     void HandlePlacementHover()
     {
+        if (TowerSelectionUI.SelectedTowerPrefab != null && CoinManager.instance == null)
+            TowerSelectionUI.Clear(false);
+
         if (TowerSelectionUI.SelectedTowerPrefab == null)
         {
             if (ghostInstance != null)
@@ -55,7 +58,7 @@ public class TowerPlacer : MonoBehaviour
 
         ghostInstance.transform.position = worldCenter + new Vector3(0, placementMap.cellSize.y * 0.25f, 0);
 
-        bool valid = placementMap.HasTile(cellPos) && !occupiedCells.Contains(cellPos);
+        bool valid = placementMap.HasTile(cellPos) && !nonPlacementMap.HasTile(cellPos) && !occupiedCells.Contains(cellPos);
         GhostTower ghost = ghostInstance.GetComponent<GhostTower>();
         if (ghost != null)
         {
@@ -76,15 +79,25 @@ public class TowerPlacer : MonoBehaviour
 
         Vector3Int cellPos = placementMap.WorldToCell(mouseWorldPos);
 
-        if (!placementMap.HasTile(cellPos) || occupiedCells.Contains(cellPos)) return;
-
-        Tower tower = TowerSelectionUI.SelectedTowerPrefab.GetComponent<Tower>();
-        if (!CoinManager.instance.TrySpend(tower.towerPrice)) return;
+        if (HitsTower(mouseWorldPos))
+            return;
+        if (!placementMap.HasTile(cellPos) || nonPlacementMap.HasTile(cellPos) || occupiedCells.Contains(cellPos))
+            return;
 
         Instantiate(TowerSelectionUI.SelectedTowerPrefab, ghostInstance.transform.position, Quaternion.identity);
         PlayPlaceSfx();
-
-        TowerSelectionUI.SelectedTowerPrefab = null;
+        TowerSelectionUI.Clear(false);
         occupiedCells.Add(cellPos);
+    }
+
+    static bool HitsTower(Vector3 world)
+    {
+        Collider2D[] hits = Physics2D.OverlapPointAll(world);
+        for (int i = 0; i < hits.Length; i++)
+        {
+            if (hits[i].GetComponent<Tower>() != null)
+                return true;
+        }
+        return false;
     }
 }

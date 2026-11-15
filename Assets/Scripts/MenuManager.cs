@@ -300,8 +300,7 @@ public class OptionsHost : MonoBehaviour
     public GameObject dim;
     public bool wired;
     bool closing;
-    bool resume;
-    float resumeScale = 1f;
+    bool held;
 
     void Awake()
     {
@@ -323,13 +322,17 @@ public class OptionsHost : MonoBehaviour
 
     public void OpenPaused()
     {
-        if (!resume)
+        if (!held)
         {
-            resumeScale = Time.timeScale;
-            resume = true;
-            Time.timeScale = 0f;
+            SpeedUpManager.PushPause();
+            held = true;
         }
         Open();
+    }
+
+    public void ReleaseHold()
+    {
+        held = false;
     }
 
     public void PlayClick()
@@ -355,10 +358,10 @@ public class OptionsHost : MonoBehaviour
         yield return new WaitForSecondsRealtime(animator.GetCurrentAnimatorStateInfo(0).length);
         panel.SetActive(false);
         closing = false;
-        if (resume)
+        if (held)
         {
-            Time.timeScale = resumeScale;
-            resume = false;
+            held = false;
+            SpeedUpManager.PopPause();
         }
         bool playOpen = MenuManager.PlayOpen;
         dim.SetActive(playOpen);
