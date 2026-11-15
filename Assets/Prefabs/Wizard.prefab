@@ -98,11 +98,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 1101401613449992327}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3cdce135d9214b14899bd0b9c210d6a6, type: 3}
+  m_Script: {fileID: 11500000, guid: a1c4e7b28d5f4e63b9a0c6d3f7152802, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  range: 3.4
-  fireRate: 0.6
+  range: 3.2
+  fireRate: 0.55
   projectilePrefab: {fileID: 4862992442665631509, guid: 8c0ba380e26c47440b0ae7a27b18ea97, type: 3}
   firePoint: {fileID: 4471485026568711982}
   shootSfx: {fileID: 8300000, guid: 55ba42cffcba47445ad04fe8bed6150f, type: 3}
@@ -114,40 +114,41 @@ MonoBehaviour:
   slowScale: 1
   slowDuration: 0
   upgradeStages:
-  - range: 4.6
-    fireRate: 0.85
+  - range: 4.3
+    fireRate: 0.925
     sprite: {fileID: -7095149832740230368, guid: 74e0598910933e7418707fb8d2c06e43, type: 3}
+    price: 12
+    damage: 2
+    channel: 1
+    burnDamage: 0
+    burnDuration: 0
+    slowScale: 1
+    slowDuration: 0
+  - range: 5.6
+    fireRate: 1.15
+    sprite: {fileID: 7396544787085421766, guid: dc055b0f5cf9d8949b8f2b60419f6d68, type: 3}
+    price: 16
+    damage: 2
+    channel: 1
+    burnDamage: 0
+    burnDuration: 0
+    slowScale: 1
+    slowDuration: 0
+  - range: 5.6
+    fireRate: 1.15
+    sprite: {fileID: 4766642050451701133, guid: 7b580eb19b29c3f4e882b960685ed87f, type: 3}
     price: 20
     damage: 2
     channel: 1
     burnDamage: 0
     burnDuration: 0
-    slowScale: 1
-    slowDuration: 0
-  - range: 6
-    fireRate: 1.1
-    sprite: {fileID: 7396544787085421766, guid: dc055b0f5cf9d8949b8f2b60419f6d68, type: 3}
-    price: 30
-    damage: 2
-    channel: 1
-    burnDamage: 0
-    burnDuration: 0
-    slowScale: 1
-    slowDuration: 0
-  - range: 6
-    fireRate: 1.1
-    sprite: {fileID: 4766642050451701133, guid: 7b580eb19b29c3f4e882b960685ed87f, type: 3}
-    price: 40
-    damage: 2
-    channel: 1
-    burnDamage: 0
-    burnDuration: 0
     slowScale: 0.5
-    slowDuration: 2
+    slowDuration: 3
   upgradeStage: 0
   towerUpgradeUIPrefab: {fileID: 5780336256910844033, guid: bf9f294a7d65f1241afa7b7d4bb2f2df, type: 3}
   cloudPS: {fileID: 5523416868174680409, guid: a9da6dd522a6b6a438af0a6f67759ac9, type: 3}
   towerPrice: 10
+  card: {fileID: 11400000, guid: 11aa0009bb000009cc000009dd000009, type: 2}
 --- !u!61 &539065238617653889
 BoxCollider2D:
   m_ObjectHideFlags: 0

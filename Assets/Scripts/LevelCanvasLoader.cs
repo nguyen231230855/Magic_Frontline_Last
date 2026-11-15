@@ -102,6 +102,8 @@ public class LevelHome : MonoBehaviour
         dim = existing != null ? existing.gameObject : CreateDim();
         dim.SetActive(false);
         panel.SetActive(false);
+        if (GetComponent<EncounterPanel>() == null)
+            gameObject.AddComponent<EncounterPanel>();
         FindButton("HomeBTN").onClick.AddListener(Open);
         FindButton("YesBTN").onClick.AddListener(Confirm);
         FindButton("NoBTN").onClick.AddListener(Hide);
@@ -160,6 +162,7 @@ public class LevelHome : MonoBehaviour
             coins.ResetCoins();
         if (speed != null)
             speed.ResetSpeed();
+        EncounterBook.Seal();
         SpeedUpManager.ClearPause();
         foreach (var label in GetComponentsInChildren<TextMeshProUGUI>(true))
         {

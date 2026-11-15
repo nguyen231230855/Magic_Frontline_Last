@@ -67,16 +67,20 @@ public class Projectile : MonoBehaviour
         transform.position = new Vector3(nearest.x, nearest.y, Mathf.Lerp(from.z, transform.position.z, along));
         try
         {
+            bool landed = false;
             if (!gliding)
             {
                 Enemy e = target != null ? target.GetComponent<Enemy>() : null;
-                if (SameLife(e))
+                if (SameLife(e) && e.Targetable && e.health > 0)
                 {
+                    landed = true;
                     e.Hurt(damage, channel);
                     if (e.health > 0)
                         e.HitStatus(burnDamage, burnDuration, slowScale, slowDuration, channel);
                 }
             }
+            if (!landed)
+                return;
             if (hitPS != null)
                 Instantiate(hitPS, transform.position, Quaternion.identity);
             if (hitSFX != null && AudioManager.Instance != null)

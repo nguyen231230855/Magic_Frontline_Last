@@ -5,11 +5,11 @@ public class Barrack : MonoBehaviour
 {
     public int[] damage = { 1, 1, 2 };
     public Sprite[] knightSprites;
-    public float attackEvery = 1.15f;
+    public float attackEvery = 1.225f;
     public float moveSpeed = 2.2f;
     public float melee = 0.45f;
     public AudioClip sword;
-    public int[] health = { 4, 6, 8 };
+    public int[] health = { 7, 9, 12 };
     public float respawn = 10f;
 
     Tower tower;
@@ -128,9 +128,13 @@ public class Barrack : MonoBehaviour
                 if (cool > 0f)
                     return;
                 int hit = barrack.damage[Mathf.Clamp(level, 0, barrack.damage.Length - 1)];
-                if (hit > 0 && prey.health > 0 && barrack.sword != null && AudioManager.Instance != null)
-                    AudioManager.Instance.PlaySFX(barrack.sword);
-                prey.Hurt(hit);
+                bool counts = prey.CountsSoldierDamage();
+                if (counts)
+                {
+                    if (hit > 0 && prey.health > 0 && barrack.sword != null && AudioManager.Instance != null)
+                        AudioManager.Instance.PlaySFX(barrack.sword);
+                    prey.SoldierHurt(hit);
+                }
                 cool = barrack.attackEvery;
                 if (prey.life != preyLife || prey.health <= 0 || !prey.gameObject.activeInHierarchy || !Sees(barrack, prey))
                     Forget();
@@ -149,6 +153,7 @@ public class Barrack : MonoBehaviour
                 return;
             prey.Hold(body, true);
             gripping = true;
+            prey.Reveal();
         }
 
         void Drop()
@@ -156,7 +161,10 @@ public class Barrack : MonoBehaviour
             if (!gripping)
                 return;
             if (prey != null && prey.gameObject.activeInHierarchy && prey.life == preyLife)
+            {
                 prey.Hold(body, false);
+                prey.Hide();
+            }
             gripping = false;
         }
 

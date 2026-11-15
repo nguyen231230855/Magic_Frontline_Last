@@ -147,13 +147,14 @@ public class WaveManager : MonoBehaviour
         if (Application.isPlaying)
             ownedFrame = Time.frameCount;
 
-        Tower[] towers = Object.FindObjectsByType<Tower>(FindObjectsSortMode.None);
-        for (int i = 0; i < towers.Length; i++)
-            towers[i].Tick();
-
+        // Land shots already in the air before a tower fires another at the corpse.
         Projectile[] shots = Object.FindObjectsByType<Projectile>(FindObjectsSortMode.None);
         for (int i = 0; i < shots.Length; i++)
             shots[i].Advance(Time.deltaTime);
+
+        Tower[] towers = Object.FindObjectsByType<Tower>(FindObjectsSortMode.None);
+        for (int i = 0; i < towers.Length; i++)
+            towers[i].Tick();
 
         Enemy[] bodies = alive.ToArray();
         for (int i = 0; i < bodies.Length; i++)
@@ -205,7 +206,12 @@ public class WaveManager : MonoBehaviour
         enemy.exitDist = exitDist;
         // A lane with no usable point is not a leak.
         if (!Enemy.UsablePath(wayPoints))
+        {
             ObjectPool.Release(e);
+            return;
+        }
+        SpriteRenderer view = e.GetComponent<SpriteRenderer>();
+        EncounterBook.Discover(enemy.card, view != null ? view.sprite : null);
     }
 
     public static float[] ExitDistances(Transform[] points)

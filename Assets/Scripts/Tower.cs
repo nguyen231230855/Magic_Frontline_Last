@@ -39,6 +39,7 @@ public class Tower : MonoBehaviour
     public GameObject cloudPS;
 
     public int towerPrice = 1;
+    public EncounterCard card;
 
     private float fireCooldown = 0f;
 
@@ -54,9 +55,8 @@ public class Tower : MonoBehaviour
         Tick();
     }
 
-    public void Tick()
+    public virtual void Tick()
     {
-        // Barrack has no projectile. Its knights live on Barrack.
         if (projectilePrefab == null)
             return;
 
@@ -76,6 +76,8 @@ public class Tower : MonoBehaviour
         Enemy best = null;
         foreach (Enemy e in WaveManager.alive)
         {
+            if (!e.Targetable || e.health <= 0)
+                continue;
             if (Vector2.Distance(transform.position, e.transform.position) > range)
                 continue;
             if (best == null || e.CloserThan(best, transform.position))
@@ -89,16 +91,21 @@ public class Tower : MonoBehaviour
     {
         GameObject p = ObjectPool.Get(projectilePrefab, firePoint.position, Quaternion.identity);
         Projectile pr = p.GetComponent<Projectile>();
+        Arm(pr);
+        pr.target = target.transform;
+        pr.life = target.life;
+        if (shootSfx != null)
+            AudioManager.Instance.PlaySFX(shootSfx, shootVolume);
+    }
+
+    protected virtual void Arm(Projectile pr)
+    {
         pr.damage = damage;
         pr.channel = channel;
         pr.burnDamage = burnDamage;
         pr.burnDuration = burnDuration;
         pr.slowScale = slowScale;
         pr.slowDuration = slowDuration;
-        pr.target = target.transform;
-        pr.life = target.life;
-        if (shootSfx != null)
-            AudioManager.Instance.PlaySFX(shootSfx, shootVolume);
     }
 
     public bool TryUpgrade()

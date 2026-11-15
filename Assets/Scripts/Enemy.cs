@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using TMPro;
 using UnityEngine;
 
@@ -14,6 +15,7 @@ public class Enemy : MonoBehaviour
     public int health = 1;
     public int reward = 1;
     public int leak = 1;
+    public EncounterCard card;
     public Transform[] waypoints;
     public float[] exitDist;
 
@@ -51,6 +53,7 @@ public class Enemy : MonoBehaviour
     public int attack = 1;
     public float attackEvery = 1f;
     float damageLeft;
+    float burnPopup;
     int burnPerTick;
     HitChannel burnChannel; // a later shot cannot relabel this burn
     float burnLeft;
@@ -96,6 +99,18 @@ public class Enemy : MonoBehaviour
             claimedBy = null;
     }
 
+    public virtual bool Targetable => true;
+
+    protected virtual bool Stealthed => false;
+
+    public virtual void Reveal() {}
+
+    public virtual void Hide() {}
+
+    public virtual bool CountsSoldierDamage() => true;
+
+    public virtual void SoldierHurt(int amount) => Hurt(amount);
+
     public void Hurt(int amount)
     {
         Hurt(amount, HitChannel.Body);
@@ -103,25 +118,30 @@ public class Enemy : MonoBehaviour
 
     public void Hurt(int amount, HitChannel lane)
     {
-        Take(amount * Taken(lane));
+        Take(Incoming(amount, lane, false));
     }
 
-    float Taken(HitChannel lane)
+    protected float Taken(HitChannel lane)
     {
         return lane == HitChannel.Spell ? spellTaken : bodyTaken;
     }
 
-    public void HurtRaw(int amount)
+    protected bool Slowed => slowLeft > 0f;
+
+    // burn is true for a Burn tick. Subclasses change resist here.
+    protected virtual float Incoming(float amount, HitChannel lane, bool burn)
     {
-        Take(amount);
+        return amount * Taken(lane);
     }
 
-    void Take(float amount)
+    void Take(float amount, bool burn = false)
     {
         if (health <= 0 || amount <= 0f) return;
-        int lost = Bank(amount);
-        if (lost > 0)
-            ShowDamage(lost);
+        if (burn)
+            ShowBurn(amount);
+        else
+            ShowDamage(amount);
+        Bank(amount);
         if (health > 0) return;
         // A death behavior runs here, before gold is read and before it is spent.
         int gold = reward;
@@ -129,43 +149,52 @@ public class Enemy : MonoBehaviour
         CoinManager.instance.UpdateCoins(gold);
     }
 
-    int Bank(float amount)
+    void Bank(float amount)
     {
         damageLeft += amount;
         int lost = Mathf.FloorToInt(damageLeft + 0.0001f);
-        if (lost > 0)
-        {
-            damageLeft -= lost;
-            health -= lost;
-        }
-        return lost;
+        if (lost <= 0) return;
+        damageLeft -= lost;
+        health -= lost;
     }
 
-    void ShowDamage(int amount)
+    void ShowBurn(float amount)
     {
-        if (amount <= 0) return;
+        burnPopup += amount;
+        int whole = Mathf.FloorToInt(burnPopup + 0.0001f);
+        burnPopup -= whole;
+        for (int i = 0; i < whole; i++)
+            ShowDamage(1f);
+    }
+
+    void ShowDamage(float amount)
+    {
+        if (amount <= 0f) return;
+        Float("-" + amount.ToString("0.##", CultureInfo.InvariantCulture), new Color(1f, 0.25f, 0.2f));
+    }
+
+    void Float(string word, Color ink)
+    {
         var go = new GameObject("Damage");
         go.transform.position = transform.position + new Vector3(Random.Range(-0.15f, 0.15f), 0.55f, 0f);
-        go.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
-        go.transform.localScale = new Vector3(-1f, 1f, 1f);
-        var text = go.AddComponent<TextMeshPro>();
-        text.font = TMP_Settings.defaultFontAsset;
-        Debug.Assert(text.font != null, "Damage number missing font");
-        text.text = "-" + amount.ToString();
-        text.fontSize = 5f;
-        text.fontStyle = FontStyles.Bold;
-        text.alignment = TextAlignmentOptions.Center;
-        text.color = new Color(1f, 0.25f, 0.2f);
-        text.sortingOrder = 20;
-        text.rectTransform.sizeDelta = new Vector2(3f, 1f);
+        var label = go.AddComponent<TextMeshPro>();
+        label.font = TMP_Settings.defaultFontAsset;
+        Debug.Assert(label.font != null, "Damage number missing font");
+        label.text = word;
+        label.fontSize = 5f;
+        label.fontStyle = FontStyles.Bold;
+        label.alignment = TextAlignmentOptions.Center;
+        label.color = ink;
+        label.sortingOrder = 20;
+        label.rectTransform.sizeDelta = new Vector2(3f, 1f);
         go.AddComponent<DamageNumber>();
     }
 
     public void Burn(int perTick, float duration, HitChannel lane = HitChannel.Body)
     {
         if (health <= 0 || perTick <= 0 || duration <= 0f) return;
-        float dealt = perTick * Taken(lane);
-        float current = burnLeft > 0f ? burnPerTick * Taken(burnChannel) : 0f;
+        float dealt = Incoming(perTick, lane, true);
+        float current = burnLeft > 0f ? Incoming(burnPerTick, burnChannel, true) : 0f;
         bool stronger = dealt > current;
         if (stronger)
         {
@@ -216,27 +245,56 @@ public class Enemy : MonoBehaviour
         baseSpeed = speed;
         baseHealth = health;
         var go = new GameObject("Status");
-        go.transform.SetParent(transform, false);
-        go.transform.position = transform.position + Vector3.up * 0.95f;
-        go.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-        Vector3 parentScale = transform.lossyScale;
-        go.transform.localScale = new Vector3(-1f / parentScale.x, 1f / parentScale.y, 1f / parentScale.z);
+        // A child of scale 5 gets localScale 0.2. That scale fills the SDF quad, so Burn is a gray plate and Slow has no letters.
+        go.transform.SetParent(null);
+        go.transform.localScale = Vector3.one;
         status = go.AddComponent<TextMeshPro>();
         status.font = TMP_Settings.defaultFontAsset;
         Debug.Assert(status.font != null, "Status missing font");
+        // Mobile SDF fills the glyph quad. The letters show, and the rest of the quad is the gray bar.
+        status.fontSharedMaterial = LabelInk(status);
         status.fontSize = 3f;
-        status.fontStyle = FontStyles.Bold;
+        status.fontStyle = FontStyles.Normal;
         status.alignment = TextAlignmentOptions.Center;
         status.color = new Color(1f, 0.45f, 0.1f);
         status.sortingOrder = 20;
         status.rectTransform.sizeDelta = new Vector2(2f, 1.5f);
         status.text = "";
+        PlaceStatus();
+    }
+
+    static Material labelInk;
+
+    static Material LabelInk(TextMeshPro label)
+    {
+        if (labelInk != null) return labelInk;
+        labelInk = new Material(label.fontSharedMaterial);
+        // Shader.Find misses this shader: nothing else references it, so it is not loaded.
+        Material src = Resources.Load<Material>("StatusInk");
+        Shader shader = src != null ? src.shader : null;
+        Debug.Assert(shader != null, "Status text missing SSD shader");
+        if (shader != null)
+            labelInk.shader = shader;
+        labelInk.EnableKeyword("UNITY_UI_ALPHACLIP");
+        return labelInk;
+    }
+
+    void LateUpdate()
+    {
+        PlaceStatus();
+    }
+
+    void PlaceStatus()
+    {
+        if (status == null) return;
+        status.transform.position = transform.position + Vector3.up * 0.95f;
     }
 
     void OnEnable()
     {
         life++;
         damageLeft = 0f;
+        burnPopup = 0f;
         health = baseHealth;
         burnPerTick = 0;
         burnChannel = HitChannel.Body;
@@ -250,23 +308,45 @@ public class Enemy : MonoBehaviour
         attackCool = attackEvery;
         speed = baseSpeed > 0f ? baseSpeed : speed;
         currentWayPoint = 0;
-        if (status != null) status.text = "";
+        if (status != null)
+        {
+            status.gameObject.SetActive(true);
+            status.text = "";
+        }
+        OnSpawn();
         WaveManager.alive.Add(this);
     }
+
+    protected virtual void OnSpawn() {}
 
     void OnDisable()
     {
         holders.Clear();
         held = 0;
         claimedBy = null;
+        if (status != null)
+            status.gameObject.SetActive(false);
         WaveManager.alive.Remove(this);
     }
 
-    void RefreshStatus()
+    void OnDestroy()
+    {
+        if (status == null) return;
+        GameObject go = status.gameObject;
+        status = null;
+        if (Application.isPlaying)
+            Destroy(go);
+        else
+            DestroyImmediate(go);
+    }
+
+    protected void RefreshStatus()
     {
         status.text = "";
+        if (Stealthed)
+            status.text += status.text.Length > 0 ? "\nTàng" : "Tàng";
         if (burnLeft > 0f)
-            status.text = "Burn";
+            status.text += status.text.Length > 0 ? "\nBurn" : "Burn";
         if (slowLeft > 0f)
             status.text += status.text.Length > 0 ? "\nSlow" : "Slow";
         if (held > 0)
@@ -335,7 +415,7 @@ public class Enemy : MonoBehaviour
     {
         if (burnLeft <= 0f || dt <= 0f) return;
         float step = dt < burnLeft ? dt : burnLeft;
-        float amount = burnPerTick * Taken(burnChannel) * step;
+        float amount = Incoming(burnPerTick * step, burnChannel, true);
         burnLeft -= step;
         if (burnLeft <= 0f)
         {
@@ -343,7 +423,7 @@ public class Enemy : MonoBehaviour
             burnChannel = HitChannel.Body;
             RefreshStatus();
         }
-        Take(amount);
+        Take(amount, true);
     }
 
     // Flat Z matches the move. Snap when this frame's step covers the gap, then spend the rest on the next point.
@@ -408,8 +488,12 @@ public class Enemy : MonoBehaviour
             bestDist = dist;
             best = knight;
         }
-        if (best != null)
-            best.Hurt(attack);
+        if (best == null)
+            return;
+        best.Hurt(attack);
+        Animator anim = GetComponent<Animator>();
+        if (anim != null)
+            anim.SetTrigger("Attack");
     }
 }
 

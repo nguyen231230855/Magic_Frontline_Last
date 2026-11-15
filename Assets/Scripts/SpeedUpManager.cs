@@ -53,6 +53,7 @@ public class SpeedUpManager : MonoBehaviour
 
     public void ResetSpeed()
     {
+        current = this;
         speedUp = false;
         btnImage.color = normalColor;
         Apply();
@@ -60,6 +61,7 @@ public class SpeedUpManager : MonoBehaviour
 
     public void ToggleSpeedUp()
     {
+        current = this;
         if (pauseCount > 0) return;
         var home = FindFirstObjectByType<LevelHome>();
         if (home != null && home.ResultOpen) return;

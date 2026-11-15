@@ -11,8 +11,8 @@ public class HealthManager : MonoBehaviour
 
     private void Awake()
     {
-        Instance = this;
         MaxHealth = health;
+        ResetHealth();
     }
 
     public void ResetHealth()

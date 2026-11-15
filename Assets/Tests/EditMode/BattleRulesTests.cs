@@ -3,6 +3,7 @@ using System.Reflection;
 using NUnit.Framework;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class BattleRulesTests
 {
@@ -74,6 +75,32 @@ public class BattleRulesTests
         try
         {
             Assert.Greater(burnLeft, 0f);
+        }
+        finally
+        {
+            Object.DestroyImmediate(root);
+        }
+    }
+
+    [Test]
+    public void StatusLabel_ScaleStaysPositive()
+    {
+        var root = new GameObject("enemy");
+        root.SetActive(false);
+        root.transform.localScale = new Vector3(5f, 5f, 5f);
+        var enemy = root.AddComponent<Enemy>();
+        enemy.SendMessage("Awake");
+        var label = (TextMeshPro)typeof(Enemy).GetField("status", BindingFlags.NonPublic | BindingFlags.Instance)
+            .GetValue(enemy);
+        try
+        {
+            Assert.AreEqual(1f, label.transform.lossyScale.x, 0.001f);
+            Assert.IsNull(label.transform.parent);
+            enemy.HitStatus(0, 0f, 0.5f, 2f);
+            Assert.AreEqual("Slow", label.text);
+            enemy.HitStatus(2, 3f, 1f, 0f);
+            Assert.That(label.text, Does.Contain("Burn"));
+            Assert.That(label.text, Does.Contain("Slow"));
         }
         finally
         {
@@ -165,6 +192,7 @@ public class BattleRulesTests
         var enemy = root.AddComponent<Enemy>();
         enemy.health = 5;
         enemy.SendMessage("Awake");
+        int pops = Popups();
         try
         {
             enemy.Burn(1, 2f);
@@ -172,17 +200,23 @@ public class BattleRulesTests
             Assert.AreEqual(3, enemy.health);
             Assert.AreEqual(0, Tick(enemy));
             Assert.AreEqual(0f, Left(enemy, "burnLeft"), 0.0001f);
+            Assert.AreEqual(pops + 2, Popups());
+            Assert.IsTrue(Saw("-1"));
+            Assert.IsFalse(Saw("-2"));
 
             enemy.Burn(1, 0.5f);
             StepBurn(enemy, 0.5f);
             Assert.AreEqual(3, enemy.health);
             Assert.AreEqual(0.5f, Banked(enemy), 0.0001f);
             Assert.AreEqual(0, Tick(enemy));
+            Assert.AreEqual(pops + 2, Popups());
 
             enemy.Burn(1, 0.5f);
             StepBurn(enemy, 0.5f);
             Assert.AreEqual(2, enemy.health);
             Assert.AreEqual(0f, Banked(enemy), 0.0001f);
+            Assert.AreEqual(pops + 3, Popups());
+            Assert.IsTrue(Saw("-1"));
 
             enemy.Burn(1, 1f);
             StepBurn(enemy, 0.25f);
@@ -191,15 +225,47 @@ public class BattleRulesTests
             Assert.AreEqual(2, enemy.health);
             Assert.AreEqual(0.5f, Banked(enemy), 0.0001f);
             Assert.AreEqual(0.75f, Left(enemy, "burnLeft"), 0.0001f);
+            Assert.AreEqual(pops + 3, Popups());
         }
         finally
         {
+            foreach (var popup in Object.FindObjectsByType<DamageNumber>(FindObjectsSortMode.None))
+                Object.DestroyImmediate(popup.gameObject);
             Object.DestroyImmediate(root);
         }
     }
 
     [Test]
-    public void Orc_BodyBanksQuiet_SpellPaysAndKeepsLane()
+    public void BurnPopup_WaitsForOneBurn_NotTheHitBank()
+    {
+        var root = new GameObject("enemy");
+        root.SetActive(false);
+        var enemy = root.AddComponent<Enemy>();
+        enemy.health = 5;
+        enemy.bodyTaken = 0.75f;
+        enemy.SendMessage("Awake");
+        int pops = Popups();
+        try
+        {
+            enemy.Hurt(1);
+            enemy.Burn(1, 1f);
+            StepBurn(enemy, 0.4f);
+            Assert.AreEqual(4, enemy.health);
+            Assert.AreEqual(pops + 1, Popups());
+            StepBurn(enemy, 0.6f);
+            Assert.AreEqual(pops + 2, Popups());
+            Assert.IsTrue(Saw("-1"));
+        }
+        finally
+        {
+            foreach (var popup in Object.FindObjectsByType<DamageNumber>(FindObjectsSortMode.None))
+                Object.DestroyImmediate(popup.gameObject);
+            Object.DestroyImmediate(root);
+        }
+    }
+
+    [Test]
+    public void Orc_BodyShowsFraction_SpellPaysAndKeepsLane()
     {
         var root = new GameObject("orc");
         root.SetActive(false);
@@ -214,12 +280,14 @@ public class BattleRulesTests
             enemy.Hurt(1, HitChannel.Body);
             Assert.AreEqual(5, enemy.health);
             Assert.AreEqual(0.75f, Banked(enemy), 0.0001f);
-            Assert.AreEqual(pops, Popups());
+            Assert.AreEqual(pops + 1, Popups());
+            Assert.IsTrue(Saw("-0.75"));
 
             enemy.Hurt(1, HitChannel.Spell);
             Assert.AreEqual(4, enemy.health);
             Assert.AreEqual(0.75f, Banked(enemy), 0.0001f);
-            Assert.AreEqual(pops + 1, Popups());
+            Assert.AreEqual(pops + 2, Popups());
+            Assert.IsTrue(Saw("-1"));
 
             enemy.Burn(1, 2f, HitChannel.Spell);
             enemy.Burn(1, 3f, HitChannel.Body);
@@ -237,9 +305,157 @@ public class BattleRulesTests
         }
     }
 
+    [Test]
+    public void Demon_BurnShowsAndDealsZero_SlowMultipliesAfterResist()
+    {
+        var root = new GameObject("demon");
+        root.SetActive(false);
+        var demon = root.AddComponent<Demon>();
+        demon.health = 20;
+        demon.bodyTaken = 0.75f;
+        demon.spellTaken = 0.75f;
+        demon.SendMessage("Awake");
+        try
+        {
+            demon.Hurt(4, HitChannel.Body);
+            Assert.AreEqual(17, demon.health);
+
+            demon.Hurt(4, HitChannel.Spell);
+            Assert.AreEqual(14, demon.health);
+
+            demon.Burn(5, 2f, HitChannel.Spell);
+            StepBurn(demon, 1f);
+            Assert.AreEqual(14, demon.health);
+            Assert.AreEqual("", StatusOf(demon));
+
+            demon.Slow(0.5f, 2f);
+            demon.Hurt(4, HitChannel.Body);
+            Assert.AreEqual(10, demon.health);
+            Assert.AreEqual(0.5f, Banked(demon), 0.0001f);
+            StepBurn(demon, 1f);
+            Assert.AreEqual(10, demon.health);
+
+            demon.Burn(4, 1f, HitChannel.Body);
+            demon.spellTaken = 1f;
+            demon.Burn(4, 3f, HitChannel.Spell);
+            Assert.AreEqual(HitChannel.Body, Lane(demon));
+            Assert.AreEqual(3f, Left(demon, "burnLeft"), 0.0001f);
+            Assert.AreEqual(10, demon.health);
+        }
+        finally
+        {
+            foreach (var popup in Object.FindObjectsByType<DamageNumber>(FindObjectsSortMode.None))
+                Object.DestroyImmediate(popup.gameObject);
+            Object.DestroyImmediate(root);
+        }
+    }
+
+    [Test]
+    public void OrcAndDemon_SoldierHitUsesBodyResist()
+    {
+        var orcGo = new GameObject("orc");
+        orcGo.SetActive(false);
+        var orc = orcGo.AddComponent<Enemy>();
+        orc.health = 14;
+        orc.bodyTaken = 0.75f;
+        orcGo.SetActive(true);
+
+        var demonGo = new GameObject("demon");
+        demonGo.SetActive(false);
+        var demon = demonGo.AddComponent<Demon>();
+        demon.health = 17;
+        demon.bodyTaken = 0.75f;
+        demonGo.SetActive(true);
+        try
+        {
+            orc.SoldierHurt(1);
+            Assert.AreEqual(14, orc.health);
+            Assert.AreEqual(0.75f, Banked(orc), 0.0001f);
+
+            demon.SoldierHurt(4);
+            Assert.AreEqual(14, demon.health);
+        }
+        finally
+        {
+            foreach (var popup in Object.FindObjectsByType<DamageNumber>(FindObjectsSortMode.None))
+                Object.DestroyImmediate(popup.gameObject);
+            Object.DestroyImmediate(orcGo);
+            Object.DestroyImmediate(demonGo);
+        }
+    }
+
+    [Test]
+    public void Blood_TowersIgnore_SoldierHurts()
+    {
+        var towerGo = new GameObject("tower");
+        towerGo.SetActive(false);
+        var tower = towerGo.AddComponent<Tower>();
+        tower.range = 10f;
+
+        var bloodGo = new GameObject("blood");
+        bloodGo.SetActive(false);
+        var sr = bloodGo.AddComponent<SpriteRenderer>();
+        var blood = bloodGo.AddComponent<Blood>();
+        blood.health = 9;
+        bloodGo.transform.position = new Vector3(1f, 0f, 0f);
+
+        var root = new GameObject("barrack");
+        root.SetActive(false);
+        var barTower = root.AddComponent<Tower>();
+        barTower.range = 5f;
+        var bar = root.AddComponent<Barrack>();
+        bar.knightSprites = new Sprite[3];
+        bar.melee = 0.45f;
+        bar.attackEvery = 0f;
+
+        bloodGo.SetActive(true);
+        try
+        {
+            Assert.IsFalse(blood.Targetable);
+            Assert.AreEqual(1f, sr.color.a, 0.001f);
+            Assert.That(StatusOf(blood), Does.Not.Contain("Tàng"));
+            Assert.IsNull(Best(tower));
+
+            root.SetActive(true);
+            bar.Tick();
+            Assert.IsTrue(blood.Claimed);
+            Assert.IsFalse(blood.Targetable);
+            Assert.IsNull(Best(tower));
+
+            foreach (Transform child in root.transform)
+                child.position = bloodGo.transform.position;
+            bar.Tick();
+            Assert.AreEqual(8, blood.health);
+            Assert.IsFalse(blood.Targetable);
+            Assert.AreEqual(1f, sr.color.a, 0.001f);
+            Assert.That(StatusOf(blood), Does.Not.Contain("Tàng"));
+            Assert.IsNull(Best(tower));
+        }
+        finally
+        {
+            WaveManager.alive.Clear();
+            foreach (var popup in Object.FindObjectsByType<DamageNumber>(FindObjectsSortMode.None))
+                Object.DestroyImmediate(popup.gameObject);
+            Object.DestroyImmediate(bloodGo);
+            Object.DestroyImmediate(towerGo);
+            Object.DestroyImmediate(root);
+        }
+    }
+
     static int Popups()
     {
         return Object.FindObjectsByType<DamageNumber>(FindObjectsSortMode.None).Length;
+    }
+
+    static bool Saw(string word)
+    {
+        foreach (var popup in Object.FindObjectsByType<DamageNumber>(FindObjectsSortMode.None))
+        {
+            var label = popup.GetComponent<TextMeshPro>();
+            if (label != null && label.text == word)
+                return true;
+        }
+        return false;
     }
 
     static void StepBurn(Enemy enemy, float dt)
@@ -375,7 +591,7 @@ public class BattleRulesTests
             live.SendMessage("Update");
             Assert.IsFalse(live.activeSelf);
             Assert.AreEqual(5, enemy.health);
-            Assert.IsNotNull(GameObject.Find("fx(Clone)"));
+            Assert.IsNull(GameObject.Find("fx(Clone)"));
         }
         finally
         {
@@ -427,6 +643,47 @@ public class BattleRulesTests
             Object.DestroyImmediate(live);
             Object.DestroyImmediate(prefab);
             Object.DestroyImmediate(enemyGo);
+        }
+    }
+
+    [Test]
+    public void HiddenBlood_ArrivingShot_DealsNothing()
+    {
+        var bloodGo = new GameObject("blood");
+        bloodGo.SetActive(false);
+        bloodGo.AddComponent<SpriteRenderer>();
+        var blood = bloodGo.AddComponent<Blood>();
+        blood.health = 9;
+        bloodGo.transform.position = new Vector3(1f, 0f, 0f);
+        var prefab = new GameObject("shot-prefab");
+        prefab.SetActive(false);
+        prefab.AddComponent<Projectile>();
+        GameObject live = ObjectPool.Get(prefab, Vector3.zero, Quaternion.identity);
+        Projectile shot = live.GetComponent<Projectile>();
+        shot.speed = 8f;
+        shot.damage = 3;
+        shot.burnDamage = 2;
+        shot.burnDuration = 1f;
+        shot.hitPS = null;
+        shot.hitSFX = null;
+        bloodGo.SetActive(true);
+        shot.target = blood.transform;
+        shot.life = blood.life;
+        var audio = AudioManager.Instance;
+        AudioManager.Instance = null;
+        try
+        {
+            shot.Advance(1f);
+            Assert.IsFalse(live.activeSelf);
+            Assert.AreEqual(9, blood.health);
+            Assert.AreEqual("", StatusOf(blood));
+        }
+        finally
+        {
+            AudioManager.Instance = audio;
+            Object.DestroyImmediate(live);
+            Object.DestroyImmediate(prefab);
+            Object.DestroyImmediate(bloodGo);
         }
     }
 
@@ -496,6 +753,54 @@ public class BattleRulesTests
             speed.speedUp = false;
             SpeedUpManager.ClearPause();
             Time.timeScale = 1f;
+            Object.DestroyImmediate(go);
+        }
+    }
+
+    [Test]
+    public void ToggleSpeed_AfterHudSlotCleared_StillDoubles()
+    {
+        var go = new GameObject("speed", typeof(RectTransform));
+        var speed = go.AddComponent<SpeedUpManager>();
+        speed.btnImage = go.AddComponent<Image>();
+        SpeedUpManager.ClearPause();
+        try
+        {
+            typeof(SpeedUpManager).GetField("current", BindingFlags.NonPublic | BindingFlags.Static)
+                .SetValue(null, null);
+            speed.ToggleSpeedUp();
+            Assert.IsTrue(speed.speedUp);
+            Assert.AreEqual(2f, Time.timeScale);
+        }
+        finally
+        {
+            speed.speedUp = false;
+            SpeedUpManager.ClearPause();
+            Time.timeScale = 1f;
+            Object.DestroyImmediate(go);
+        }
+    }
+
+    [Test]
+    public void ResetHealth_RestoresAuthoredStart()
+    {
+        var go = new GameObject("health");
+        go.SetActive(false);
+        var hm = go.AddComponent<HealthManager>();
+        hm.healthTxt = go.AddComponent<TextMeshProUGUI>();
+        hm.health = 100;
+        go.SetActive(true);
+        try
+        {
+            hm.UpdateHealth(-50);
+            Assert.AreEqual(50, hm.health);
+            hm.ResetHealth();
+            Assert.AreEqual(100, hm.health);
+            Assert.AreEqual("100", hm.healthTxt.text);
+        }
+        finally
+        {
+            HealthManager.Instance = null;
             Object.DestroyImmediate(go);
         }
     }
@@ -1230,7 +1535,9 @@ public class BattleRulesTests
 
     static string StatusOf(Enemy enemy)
     {
-        return enemy.GetComponentInChildren<TextMeshPro>().text;
+        var label = (TextMeshPro)typeof(Enemy).GetField("status", BindingFlags.NonPublic | BindingFlags.Instance)
+            .GetValue(enemy);
+        return label.text;
     }
 
     static GameObject BarrackAt(string name, Vector3 at)
@@ -1247,9 +1554,162 @@ public class BattleRulesTests
         return root;
     }
 
+    [Test]
+    public void ArcherBurns_WizardSlows()
+    {
+        var bullet = new GameObject("bullet");
+        bullet.SetActive(false);
+        bullet.AddComponent<Projectile>().speed = 1f;
+        var enemyGo = new GameObject("enemy");
+        enemyGo.SetActive(false);
+        var enemy = enemyGo.AddComponent<Enemy>();
+        enemy.health = 5;
+        enemyGo.SetActive(true);
+        var archerGo = new GameObject("archer");
+        archerGo.SetActive(false);
+        var archer = archerGo.AddComponent<Archer>();
+        ArmBoth(archer, bullet);
+        var wizardGo = new GameObject("wizard");
+        wizardGo.SetActive(false);
+        var wizard = wizardGo.AddComponent<Wizard>();
+        ArmBoth(wizard, bullet);
+        GameObject live = null;
+        try
+        {
+            Shoot(archer, enemy);
+            live = GameObject.Find("bullet(Clone)");
+            Projectile shot = live.GetComponent<Projectile>();
+            Assert.AreEqual(1, shot.burnDamage);
+            Assert.AreEqual(2f, shot.burnDuration, 0.0001f);
+            Assert.AreEqual(1f, shot.slowScale, 0.0001f);
+            Assert.AreEqual(0f, shot.slowDuration, 0.0001f);
+            Object.DestroyImmediate(live);
+            live = null;
+
+            Shoot(wizard, enemy);
+            live = GameObject.Find("bullet(Clone)");
+            shot = live.GetComponent<Projectile>();
+            Assert.AreEqual(0, shot.burnDamage);
+            Assert.AreEqual(0f, shot.burnDuration, 0.0001f);
+            Assert.AreEqual(0.5f, shot.slowScale, 0.0001f);
+            Assert.AreEqual(3f, shot.slowDuration, 0.0001f);
+        }
+        finally
+        {
+            if (live != null)
+                Object.DestroyImmediate(live);
+            Object.DestroyImmediate(bullet);
+            Object.DestroyImmediate(enemyGo);
+            Object.DestroyImmediate(archerGo);
+            Object.DestroyImmediate(wizardGo);
+        }
+    }
+
+    static void ArmBoth(Tower tower, GameObject bullet)
+    {
+        tower.projectilePrefab = bullet;
+        tower.firePoint = tower.transform;
+        tower.damage = 2;
+        tower.burnDamage = 1;
+        tower.burnDuration = 2f;
+        tower.slowScale = 0.5f;
+        tower.slowDuration = 3f;
+    }
+
+    static void Shoot(Tower tower, Enemy enemy)
+    {
+        typeof(Tower).GetMethod("Shoot", BindingFlags.NonPublic | BindingFlags.Instance)
+            .Invoke(tower, new object[] { enemy });
+    }
+
+    [Test]
+    public void Wizard_SlowOnlyOnIce()
+    {
+        var prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Wizard.prefab");
+        Tower tower = prefab.GetComponent<Tower>();
+        Assert.AreEqual(1f, tower.slowScale, 0.0001f);
+        Assert.AreEqual(0f, tower.slowDuration, 0.0001f);
+        int ice = 0;
+        foreach (TowerUpgradeStages stage in tower.upgradeStages)
+        {
+            bool frozen = stage.sprite != null && stage.sprite.name == "wizard_ice_0";
+            if (frozen)
+                ice++;
+            Assert.AreEqual(frozen ? 0.5f : 1f, stage.slowScale, 0.0001f);
+            Assert.AreEqual(frozen ? 3f : 0f, stage.slowDuration, 0.0001f);
+        }
+        Assert.AreEqual(1, ice);
+    }
+
+    [Test]
+    public void AttackClip_OneShotOnTheThreeControllers()
+    {
+        ExpectAttack("Assets/Animations/Orc.controller", "Orc_Attack", 6);
+        ExpectAttack("Assets/Animations/Demon.controller", "Demon_Attack", 7);
+        ExpectAttack("Assets/Animations/Blood.controller", "Blood_Attack", 8);
+    }
+
+    static void ExpectAttack(string path, string state, int frames)
+    {
+        var controller = UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEditor.Animations.AnimatorController>(path);
+        Assert.IsNotNull(controller, path);
+        bool trigger = false;
+        foreach (var parameter in controller.parameters)
+            if (parameter.name == "Attack" && parameter.type == AnimatorControllerParameterType.Trigger)
+                trigger = true;
+        Assert.IsTrue(trigger, path);
+        AnimationClip clip = null;
+        foreach (var child in controller.layers[0].stateMachine.states)
+            if (child.state.name == state)
+                clip = child.state.motion as AnimationClip;
+        Assert.IsNotNull(clip, state);
+        Assert.IsFalse(clip.isLooping);
+        Assert.AreEqual(frames / 8f, clip.length, 0.001f);
+    }
+
     static int Held(Enemy enemy)
     {
         return (int)typeof(Enemy).GetField("held", BindingFlags.NonPublic | BindingFlags.Instance)
             .GetValue(enemy);
+    }
+
+    [Test]
+    public void Encounter_SecondPageWaits_DismissRemembers()
+    {
+        const string key = "discoveredIds";
+        bool had = PlayerPrefs.HasKey(key);
+        string prior = PlayerPrefs.GetString(key, "");
+        var first = ScriptableObject.CreateInstance<EncounterCard>();
+        first.id = "test-orc";
+        first.displayName = "Orc";
+        var second = ScriptableObject.CreateInstance<EncounterCard>();
+        second.id = "test-blood";
+        second.displayName = "Blood";
+        try
+        {
+            EncounterBook.Clear();
+            EncounterBook.Discover(first, null);
+            EncounterBook.Discover(second, null);
+            Assert.AreEqual("Orc", EncounterBook.Showing.card.displayName);
+            EncounterBook.Dismiss();
+            Assert.AreEqual("Blood", EncounterBook.Showing.card.displayName);
+            EncounterBook.Discover(first, null);
+            Assert.AreEqual("Blood", EncounterBook.Showing.card.displayName);
+            EncounterBook.Dismiss();
+            Assert.IsNull(EncounterBook.Showing.card);
+            EncounterBook.Discover(first, null);
+            Assert.IsNull(EncounterBook.Showing.card);
+        }
+        finally
+        {
+            EncounterBook.Clear();
+            if (had)
+                PlayerPrefs.SetString(key, prior);
+            else
+                PlayerPrefs.DeleteKey(key);
+            EncounterBook.Reload();
+            Object.DestroyImmediate(first);
+            Object.DestroyImmediate(second);
+        }
     }
 }

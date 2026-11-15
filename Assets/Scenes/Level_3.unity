@@ -4015,7 +4015,7 @@ Camera:
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 2
-  m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
+  m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 1}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0
@@ -4445,7 +4445,7 @@ MonoBehaviour:
   nonPlacementMap: {fileID: 177171978}
   ghostPrefab: {fileID: 8731875975634871556, guid: 692190b6f500ec54c880395a15c1b958, type: 3}
   placeSfx: {fileID: 8300000, guid: 749ab1432968eeb49bc97ef55725da70, type: 3}
-  startCoins: 25
+  startCoins: 30
 --- !u!4 &833132113
 Transform:
   m_ObjectHideFlags: 0

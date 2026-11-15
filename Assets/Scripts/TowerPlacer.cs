@@ -84,10 +84,14 @@ public class TowerPlacer : MonoBehaviour
         if (!placementMap.HasTile(cellPos) || nonPlacementMap.HasTile(cellPos) || occupiedCells.Contains(cellPos))
             return;
 
-        Instantiate(TowerSelectionUI.SelectedTowerPrefab, ghostInstance.transform.position, Quaternion.identity);
+        GameObject placed = Instantiate(TowerSelectionUI.SelectedTowerPrefab, ghostInstance.transform.position, Quaternion.identity);
         PlayPlaceSfx();
         TowerSelectionUI.Clear(false);
         occupiedCells.Add(cellPos);
+        Tower tower = placed.GetComponent<Tower>();
+        SpriteRenderer view = placed.GetComponent<SpriteRenderer>();
+        if (tower != null)
+            EncounterBook.Discover(tower.card, view != null ? view.sprite : null);
     }
 
     static bool HitsTower(Vector3 world)

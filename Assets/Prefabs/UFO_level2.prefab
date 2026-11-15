@@ -100,13 +100,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f69fee1be2bf0204c9f98a3ce4f32dfc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  speed: 3
-  health: 7
+  speed: 2.6
+  health: 9
   reward: 5
-  leak: 5
+  leak: 6
   waypoints: []
   currentWayPoint: 0
   bodyTaken: 1
   spellTaken: 1
-  attack: 0
+  attack: 2
   attackEvery: 0.8
+  card: {fileID: 11400000, guid: 11aa0004bb000004cc000004dd000004, type: 2}
